@@ -1,0 +1,22 @@
+{
+  "name": "travel-chat-widget",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Installable travel booking chat widget for Next.js sites using the Travel Agent Chatbot API.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "sideEffects": [
+    "./travel-chat-widget.css"
+  ],
+  "peerDependencies": {
+    "next": ">=14.0.0",
+    "react": ">=18.2.0",
+    "react-dom": ">=18.2.0"
+  }
+}
