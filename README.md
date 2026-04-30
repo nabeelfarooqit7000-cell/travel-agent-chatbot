@@ -8,6 +8,7 @@ Python service for a travel website chatbot that answers customer questions and 
 - Chat endpoint for customer questions
 - Sabre fare search endpoint for flight shopping
 - Website FAQ support for policies and common service questions
+- JSON-backed knowledge base with secure admin setup/update endpoints
 - Ranking logic to surface the best fare options
 - Environment-based Sabre configuration
 - Basic tests for the response and ranking flow
@@ -36,7 +37,25 @@ uvicorn app.main:app --reload
 
 The API will start at `http://127.0.0.1:8000`.
 
-Open `http://127.0.0.1:8000/demo` in your browser to test the chatbot UI directly.
+### Knowledge Base Setup (JSON + Admin UI)
+
+- First-time setup UI: `GET /admin`
+- Setup status API: `GET /api/admin/setup/status`
+- Initialize API: `POST /api/admin/setup/initialize` (requires `X-Admin-Key`)
+- Update knowledge API: `POST /api/admin/knowledge/update` (requires `X-Admin-Key`)
+- Knowledge file location is controlled by `KNOWLEDGE_JSON_PATH` in `.env`.
+
+The chatbot uses JSON knowledge entries for FAQs and policy answers, including:
+- terms and conditions
+- refund policy
+- exchange charges
+- refund charges
+
+## MVP Scope Baseline
+
+Step-1 scope and KPI targets are documented in `docs/mvp_scope_success_criteria.md`.
+
+Open `http://127.0.0.1:8000/demo` to test chat and `http://127.0.0.1:8000/admin` for first-time admin setup.
 
 ## Sabre Notes
 

@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     sabre_client_id: str = ""
     sabre_client_secret: str = ""
     sabre_timeout_seconds: float = 30.0
+    admin_setup_key: str = ""
+    knowledge_json_path: str = "app/data/knowledge_base.json"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
 
