@@ -68,7 +68,11 @@ class SabreTravelService:
             raise SabreAPIError(f"Sabre fare search failed with status {response.status_code}: {response.text}")
 
         data = response.json()
-        offers = data.get("data") or data.get("offers") or self._extract_grouped_itinerary_offers(data)
+        offers = (
+            data.get("data")
+            or data.get("offers")
+            or self._extract_grouped_itinerary_offers(data, request_currency=request.currency)
+        )
         if not isinstance(offers, list):
             raise SabreAPIError("Sabre response did not contain a valid offers list.")
 
@@ -205,7 +209,7 @@ class SabreTravelService:
         ]
         return [item for item in passenger_quantities if item["Quantity"] > 0]
 
-    def _extract_grouped_itinerary_offers(self, data: dict[str, Any]) -> list[dict[str, Any]]:
+    def _extract_grouped_itinerary_offers(self, data: dict[str, Any], request_currency: str) -> list[dict[str, Any]]:
         grouped = data.get("groupedItineraryResponse") or {}
         leg_descs = {leg.get("id"): leg for leg in grouped.get("legDescs") or []}
         schedule_descs = {schedule.get("id"): schedule for schedule in grouped.get("scheduleDescs") or []}
@@ -216,7 +220,7 @@ class SabreTravelService:
                 pricing_info = (itinerary.get("pricingInformation") or [{}])[0]
                 fare = pricing_info.get("fare") or {}
                 total_fare = fare.get("totalFare") or {}
-                total_price = total_fare.get("totalPrice")
+                total_price, total_currency = self._pick_grouped_total_price(total_fare, request_currency)
                 if not total_price:
                     continue
 
@@ -241,13 +245,35 @@ class SabreTravelService:
                 offers.append(
                     {
                         "id": f"grouped-{len(offers) + 1}",
-                        "price": {"total": str(total_price), "currency": total_fare.get("currency") or "USD"},
+                        "price": {"total": str(total_price), "currency": total_currency},
                         "validatingAirlineCodes": [],
                         "itineraries": [{"segments": segments}] if segments else [],
                         "travelerPricings": [],
                     }
                 )
         return offers
+
+    def _pick_grouped_total_price(self, total_fare: dict[str, Any], request_currency: str) -> tuple[str | float | int | None, str]:
+        request_currency = (request_currency or "PKR").upper()
+        response_currency = str(total_fare.get("currency") or "").upper()
+
+        # Prefer equivalent currency fields when requesting PKR and Sabre provides converted amounts.
+        if request_currency == "PKR":
+            equivalent_amount = (
+                total_fare.get("equivalentAmount")
+                or total_fare.get("equivAmount")
+                or total_fare.get("EquivalentAmount")
+            )
+            equivalent_currency = str(
+                total_fare.get("equivalentCurrency")
+                or total_fare.get("equivCurrency")
+                or total_fare.get("EquivalentCurrency")
+                or ""
+            ).upper()
+            if equivalent_amount is not None and equivalent_currency == "PKR":
+                return equivalent_amount, "PKR"
+
+        return total_fare.get("totalPrice"), (response_currency or request_currency or "PKR")
 
     def _build_travelers(self, request: FareSearchRequest) -> list[dict[str, Any]]:
         travelers: list[dict[str, Any]] = []
@@ -286,7 +312,7 @@ class SabreTravelService:
     def _normalize_offer(self, offer: dict[str, Any]) -> FareOption | None:
         price_data = offer.get("price") or {}
         total = price_data.get("total")
-        currency = price_data.get("currency") or "USD"
+        currency = price_data.get("currency") or "PKR"
 
         if total is None:
             return None
