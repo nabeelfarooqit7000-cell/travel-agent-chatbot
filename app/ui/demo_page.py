@@ -1,4 +1,4 @@
-DEMO_PAGE_HTML = r"""<!DOCTYPE html>
+DEMO_PAGE_HTML = """<!DOCTYPE html>
 <html lang=\"en\">
 <head>
   <meta charset=\"UTF-8\" />
@@ -278,7 +278,7 @@ DEMO_PAGE_HTML = r"""<!DOCTYPE html>
 
     function getApiBaseUrl() {
       const value = apiBaseUrlInput.value.trim();
-      return value ? value.replace(/\/$/, "") : window.location.origin;
+      return value ? value.replace(/\\/$/, "") : window.location.origin;
     }
 
     function appendMessage(role, text, fares) {
