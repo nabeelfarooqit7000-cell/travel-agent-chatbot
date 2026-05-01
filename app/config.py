@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     sabre_flight_shop_path: str = "/v4/offers/shop"
     sabre_client_id: str = ""
     sabre_client_secret: str = ""
+    sabre_cpa_id: str = ""
+    sabre_pcc: str = ""
+    sabre_requestor_company_code: str = "TN"
+    sabre_iso_country: str = "PK"
     sabre_timeout_seconds: float = 30.0
     admin_setup_key: str = ""
     knowledge_json_path: str = "app/data/knowledge_base.json"

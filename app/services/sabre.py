@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
-from datetime import date
 from typing import Any
 
 import httpx
@@ -48,22 +48,27 @@ class SabreTravelService:
 
         token = await self._get_token()
         payload = self._build_search_payload(request)
+        headers = {
+            "Authorization": f"{token.token_type} {token.access_token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        cpa_id = self._effective_cpa_id()
+        if cpa_id:
+            headers["X-CPAID"] = cpa_id
 
         async with httpx.AsyncClient(timeout=self.settings.sabre_timeout_seconds) as client:
             response = await client.post(
                 f"{self.settings.sabre_base_url}{self.settings.sabre_flight_shop_path}",
                 json=payload,
-                headers={
-                    "Authorization": f"{token.token_type} {token.access_token}",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
             )
 
         if response.status_code >= 400:
             raise SabreAPIError(f"Sabre fare search failed with status {response.status_code}: {response.text}")
 
         data = response.json()
-        offers = data.get("data") or data.get("offers") or []
+        offers = data.get("data") or data.get("offers") or self._extract_grouped_itinerary_offers(data)
         if not isinstance(offers, list):
             raise SabreAPIError("Sabre response did not contain a valid offers list.")
 
@@ -71,11 +76,17 @@ class SabreTravelService:
 
     async def _get_token(self) -> SabreToken:
         async with httpx.AsyncClient(timeout=self.settings.sabre_timeout_seconds) as client:
+            basic = self._build_nested_basic_token(
+                self.settings.sabre_client_id,
+                self.settings.sabre_client_secret,
+            )
             response = await client.post(
                 self.settings.sabre_auth_url,
                 data={"grant_type": "client_credentials"},
-                auth=(self.settings.sabre_client_id, self.settings.sabre_client_secret),
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers={
+                    "Authorization": f"Basic {basic}",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
             )
 
         if response.status_code >= 400:
@@ -90,34 +101,153 @@ class SabreTravelService:
         return SabreToken(access_token=access_token, token_type=token_type)
 
     def _build_search_payload(self, request: FareSearchRequest) -> dict[str, Any]:
+        pcc = self._effective_pcc()
+        segments = [
+            self._build_origin_destination_segment(
+                request.origin,
+                request.destination,
+                request.departure_date.isoformat(),
+                "1",
+            )
+        ]
+
+        if request.return_date:
+            segments.append(
+                self._build_origin_destination_segment(
+                    request.destination,
+                    request.origin,
+                    request.return_date.isoformat(),
+                    "2",
+                )
+            )
+
         payload: dict[str, Any] = {
-            "originDestinations": [
-                {
-                    "id": "1",
-                    "originLocationCode": request.origin,
-                    "destinationLocationCode": request.destination,
-                    "departureDateTimeRange": {"date": request.departure_date.isoformat()},
-                }
-            ],
-            "travelers": self._build_travelers(request),
-            "sources": ["GDS"],
-            "searchCriteria": {
-                "maxFlightOffers": request.max_results,
-                "pricingOptions": {"currencyCode": request.currency},
+            "OTA_AirLowFareSearchRQ": {
+                "Version": "5",
+                "AvailableFlightsOnly": True,
+                "ResponseType": "OTA",
+                "OriginDestinationInformation": segments,
+                "POS": {
+                    "Source": [
+                        {
+                            "PseudoCityCode": pcc,
+                            "RequestorID": {
+                                "CompanyName": {"Code": self.settings.sabre_requestor_company_code},
+                                "ID": "1",
+                                "Type": "1",
+                            },
+                            "ISOCountry": self.settings.sabre_iso_country,
+                            "ISOCurrency": request.currency,
+                        }
+                    ]
+                },
+                "TravelPreferences": {
+                    "ETicketDesired": True,
+                    "ValidInterlineTicket": True,
+                    "MaxStopsQuantity": 2,
+                    "TPA_Extensions": {
+                        "DataSources": {
+                            "ATPCO": "Enable",
+                            "LCC": "Enable",
+                            "NDC": "Disable",
+                        },
+                        "TripType": {"Value": "Return" if request.return_date else "OneWay"},
+                    },
+                },
+                "TravelerInfoSummary": {
+                    "AirTravelerAvail": [{"PassengerTypeQuantity": self._build_passenger_type_quantities(request)}],
+                    "PriceRequestInformation": {
+                        "CurrencyCode": request.currency,
+                        "NegotiatedFaresOnly": False,
+                        "ProcessThruFaresOnly": True,
+                    },
+                    "SpecificPTC_Indicator": True,
+                    "SeatsRequested": [request.adults + request.children + request.infants],
+                },
+                "TPA_Extensions": {
+                    "IntelliSellTransaction": {"RequestType": {"Name": "200ITINS"}},
+                },
+            },
+        }
+        return payload
+
+    def _build_nested_basic_token(self, client_id: str, client_secret: str) -> str:
+        encoded_id = base64.b64encode(client_id.encode("utf-8")).decode("utf-8")
+        encoded_secret = base64.b64encode(client_secret.encode("utf-8")).decode("utf-8")
+        return base64.b64encode(f"{encoded_id}:{encoded_secret}".encode("utf-8")).decode("utf-8")
+
+    def _effective_cpa_id(self) -> str:
+        return self.settings.sabre_cpa_id or self.settings.sabre_client_id
+
+    def _effective_pcc(self) -> str:
+        if self.settings.sabre_pcc:
+            return self.settings.sabre_pcc
+        parts = self.settings.sabre_client_id.split(":")
+        return parts[2] if len(parts) >= 3 else ""
+
+    def _build_origin_destination_segment(self, origin: str, destination: str, departure_date: str, rph: str) -> dict[str, Any]:
+        return {
+            "DepartureDateTime": f"{departure_date}T00:00:00",
+            "DepartureWindow": "00002359",
+            "OriginLocation": {"LocationCode": origin},
+            "DestinationLocation": {"LocationCode": destination},
+            "RPH": rph,
+            "TPA_Extensions": {
+                "SegmentType": {"Code": "O"},
             },
         }
 
-        if request.return_date:
-            payload["originDestinations"].append(
-                {
-                    "id": "2",
-                    "originLocationCode": request.destination,
-                    "destinationLocationCode": request.origin,
-                    "departureDateTimeRange": {"date": request.return_date.isoformat()},
-                }
-            )
+    def _build_passenger_type_quantities(self, request: FareSearchRequest) -> list[dict[str, Any]]:
+        passenger_quantities = [
+            {"Code": "ADT", "Quantity": request.adults},
+            {"Code": "CNN", "Quantity": request.children},
+            {"Code": "INF", "Quantity": request.infants},
+        ]
+        return [item for item in passenger_quantities if item["Quantity"] > 0]
 
-        return payload
+    def _extract_grouped_itinerary_offers(self, data: dict[str, Any]) -> list[dict[str, Any]]:
+        grouped = data.get("groupedItineraryResponse") or {}
+        leg_descs = {leg.get("id"): leg for leg in grouped.get("legDescs") or []}
+        schedule_descs = {schedule.get("id"): schedule for schedule in grouped.get("scheduleDescs") or []}
+
+        offers: list[dict[str, Any]] = []
+        for group in grouped.get("itineraryGroups") or []:
+            for itinerary in group.get("itineraries") or []:
+                pricing_info = (itinerary.get("pricingInformation") or [{}])[0]
+                fare = pricing_info.get("fare") or {}
+                total_fare = fare.get("totalFare") or {}
+                total_price = total_fare.get("totalPrice")
+                if not total_price:
+                    continue
+
+                segments: list[dict[str, Any]] = []
+                for leg_ref in itinerary.get("legs") or []:
+                    leg = leg_descs.get(leg_ref.get("ref")) or {}
+                    for sched_ref in leg.get("schedules") or []:
+                        sched = schedule_descs.get(sched_ref.get("ref")) or {}
+                        segments.append(
+                            {
+                                "departure": {
+                                    "iataCode": (sched.get("departure") or {}).get("airport"),
+                                    "at": (sched.get("departure") or {}).get("time"),
+                                },
+                                "arrival": {
+                                    "iataCode": (sched.get("arrival") or {}).get("airport"),
+                                    "at": (sched.get("arrival") or {}).get("time"),
+                                },
+                            }
+                        )
+
+                offers.append(
+                    {
+                        "id": f"grouped-{len(offers) + 1}",
+                        "price": {"total": str(total_price), "currency": total_fare.get("currency") or "USD"},
+                        "validatingAirlineCodes": [],
+                        "itineraries": [{"segments": segments}] if segments else [],
+                        "travelerPricings": [],
+                    }
+                )
+        return offers
 
     def _build_travelers(self, request: FareSearchRequest) -> list[dict[str, Any]]:
         travelers: list[dict[str, Any]] = []

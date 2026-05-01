@@ -18,11 +18,12 @@ def test_build_search_payload_round_trip() -> None:
     )
 
     payload = service._build_search_payload(request)
+    rq = payload["OTA_AirLowFareSearchRQ"]
 
-    assert len(payload["originDestinations"]) == 2
-    assert payload["searchCriteria"]["maxFlightOffers"] == 5
-    assert payload["travelers"][0]["travelerType"] == "ADULT"
-    assert payload["travelers"][1]["travelerType"] == "CHILD"
+    assert len(rq["OriginDestinationInformation"]) == 2
+    assert rq["Version"] == "5"
+    assert rq["TravelerInfoSummary"]["AirTravelerAvail"][0]["PassengerTypeQuantity"][0]["Code"] == "ADT"
+    assert rq["TravelerInfoSummary"]["AirTravelerAvail"][0]["PassengerTypeQuantity"][1]["Code"] == "CNN"
 
 
 def test_rank_offers_sorts_by_price_then_stops() -> None:
