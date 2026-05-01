@@ -1,4 +1,4 @@
-ADMIN_PAGE_HTML = r"""<!DOCTYPE html>
+ADMIN_PAGE_HTML = """<!DOCTYPE html>
 <html lang=\"en\">
 <head>
   <meta charset=\"UTF-8\" />
@@ -60,10 +60,36 @@ ADMIN_PAGE_HTML = r"""<!DOCTYPE html>
 
     function baseUrl() {
       const v = document.getElementById("apiBaseUrl").value.trim();
-      return v ? v.replace(/\/$/, "") : window.location.origin;
+      return v ? v.replace(/\\/$/, "") : window.location.origin;
     }
     function key() {
       return document.getElementById("adminKey").value.trim();
+    }
+
+    function parseApiError(data, fallbackMessage) {
+      if (!data) return fallbackMessage;
+      if (typeof data.detail === "string") return data.detail;
+      if (Array.isArray(data.detail) && data.detail.length > 0) {
+        const first = data.detail[0];
+        if (first && typeof first === "object") {
+          const location = Array.isArray(first.loc) ? first.loc.join(".") : "field";
+          const message = first.msg || "Invalid value";
+          return `${location}: ${message}`;
+        }
+      }
+      return fallbackMessage;
+    }
+
+    function validateRequiredBeforeSave() {
+      if (!key()) {
+        statusEl.textContent = "Save failed: Admin key is required.";
+        return false;
+      }
+      if (!termsEl.value.trim() || !refundPolicyEl.value.trim() || !exchangeChargesEl.value.trim() || !refundChargesEl.value.trim()) {
+        statusEl.textContent = "Save failed: All policy fields are required.";
+        return false;
+      }
+      return true;
     }
 
     async function loadStatus() {
@@ -93,7 +119,7 @@ ADMIN_PAGE_HTML = r"""<!DOCTYPE html>
           body: JSON.stringify(payload),
         });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.detail || "Setup failed");
+        if (!response.ok) throw new Error(parseApiError(data, "Setup failed"));
         statusEl.textContent = "Initial setup completed.";
         termsEl.value = data.policies.terms_and_conditions || "";
         refundPolicyEl.value = data.policies.refund_policy || "";
@@ -106,10 +132,27 @@ ADMIN_PAGE_HTML = r"""<!DOCTYPE html>
     });
 
     document.getElementById("saveButton").addEventListener("click", async () => {
+      if (!validateRequiredBeforeSave()) {
+        return;
+      }
+
       statusEl.textContent = "Saving knowledge...";
       try {
+        let parsedFaqs = [];
+        if (faqsJsonEl.value.trim()) {
+          try {
+            parsedFaqs = JSON.parse(faqsJsonEl.value);
+            if (!Array.isArray(parsedFaqs)) {
+              throw new Error("FAQs JSON must be an array.");
+            }
+          } catch (jsonError) {
+            statusEl.textContent = `Save failed: Invalid FAQs JSON. ${jsonError.message || ""}`.trim();
+            return;
+          }
+        }
+
         const payload = {
-          faqs: faqsJsonEl.value.trim() ? JSON.parse(faqsJsonEl.value) : [],
+          faqs: parsedFaqs,
           terms_and_conditions: termsEl.value,
           refund_policy: refundPolicyEl.value,
           exchange_charges: exchangeChargesEl.value,
@@ -121,7 +164,7 @@ ADMIN_PAGE_HTML = r"""<!DOCTYPE html>
           body: JSON.stringify(payload),
         });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.detail || "Save failed");
+        if (!response.ok) throw new Error(parseApiError(data, "Save failed"));
         statusEl.textContent = `Knowledge updated at ${data.updated_at}.`;
       } catch (error) {
         statusEl.textContent = `Save failed: ${error.message}`;
