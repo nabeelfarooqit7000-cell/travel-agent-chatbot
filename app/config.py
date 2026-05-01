@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     sabre_timeout_seconds: float = 30.0
     admin_setup_key: str = ""
     knowledge_json_path: str = "app/data/knowledge_base.json"
+    knowledge_backup_dir: str = "app/data/backups"
+    admin_rate_limit_per_minute: int = 30
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
 

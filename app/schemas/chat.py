@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.schemas.fares import FareOption, FareSearchRequest
@@ -12,3 +14,4 @@ class ChatResponse(BaseModel):
     answer: str
     detected_trip: FareSearchRequest | None = None
     fares: list[FareOption] = Field(default_factory=list)
+    route_type: Literal["sabre", "knowledge", "fallback"] = "fallback"

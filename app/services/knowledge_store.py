@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ class KnowledgeStore:
     def __init__(self) -> None:
         self.settings = get_settings()
         self.path = Path(self.settings.knowledge_json_path)
+        self.backup_dir = Path(self.settings.knowledge_backup_dir)
 
     def load(self) -> dict[str, Any]:
         if not self.path.exists():
@@ -41,6 +43,8 @@ class KnowledgeStore:
         normalized = self._normalize_payload(payload)
         normalized["updated_at"] = self._timestamp()
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+        self._backup_existing_file()
         tmp_path = self.path.with_suffix(".tmp")
         with tmp_path.open("w", encoding="utf-8") as handle:
             json.dump(normalized, handle, indent=2)
@@ -121,3 +125,10 @@ class KnowledgeStore:
 
     def _timestamp(self) -> str:
         return datetime.now(timezone.utc).isoformat()
+
+    def _backup_existing_file(self) -> None:
+        if not self.path.exists():
+            return
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        backup_path = self.backup_dir / f"knowledge_base.{stamp}.json"
+        shutil.copy2(self.path, backup_path)

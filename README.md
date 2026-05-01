@@ -44,6 +44,8 @@ The API will start at `http://127.0.0.1:8000`.
 - Initialize API: `POST /api/admin/setup/initialize` (requires `X-Admin-Key`)
 - Update knowledge API: `POST /api/admin/knowledge/update` (requires `X-Admin-Key`)
 - Knowledge file location is controlled by `KNOWLEDGE_JSON_PATH` in `.env`.
+- Every knowledge update creates a timestamped JSON backup in `KNOWLEDGE_BACKUP_DIR`.
+- Admin endpoints are rate-limited via `ADMIN_RATE_LIMIT_PER_MINUTE`.
 
 The chatbot uses JSON knowledge entries for FAQs and policy answers, including:
 - terms and conditions
@@ -54,6 +56,7 @@ The chatbot uses JSON knowledge entries for FAQs and policy answers, including:
 ## MVP Scope Baseline
 
 Step-1 scope and KPI targets are documented in `docs/mvp_scope_success_criteria.md`.
+Chat responses expose `route_type` (`sabre`, `knowledge`, `fallback`) to support KPI tracking.
 
 Open `http://127.0.0.1:8000/demo` to test chat and `http://127.0.0.1:8000/admin` for first-time admin setup.
 

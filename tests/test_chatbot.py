@@ -50,6 +50,7 @@ async def test_chatbot_returns_ranked_fares() -> None:
     assert response.fares
     assert response.fares[0].total_price == 499.99
     assert "best fare" in response.answer.lower()
+    assert response.route_type == "sabre"
 
 
 def test_chatbot_extracts_trip_from_message() -> None:
@@ -76,6 +77,7 @@ async def test_chatbot_answers_refund_policy_questions() -> None:
     assert response.detected_trip is None
     assert response.fares == []
     assert "refund policy" in response.answer.lower() or "refundable" in response.answer.lower()
+    assert response.route_type == "knowledge"
 
 
 @pytest.mark.asyncio
@@ -87,3 +89,4 @@ async def test_chatbot_returns_general_fallback_for_unknown_question() -> None:
     assert response.detected_trip is None
     assert response.fares == []
     assert "website questions" in response.answer.lower()
+    assert response.route_type == "fallback"
