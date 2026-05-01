@@ -4,14 +4,14 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class FareSearchRequest(BaseModel):
-    origin: str = Field(min_length=3, max_length=3)
-    destination: str = Field(min_length=3, max_length=3)
+    origin: str = Field(min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$")
+    destination: str = Field(min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$")
     departure_date: date
     return_date: date | None = None
     adults: int = Field(default=1, ge=1, le=9)
     children: int = Field(default=0, ge=0, le=9)
     infants: int = Field(default=0, ge=0, le=9)
-    currency: str = Field(default="USD", min_length=3, max_length=3)
+    currency: str = Field(default="PKR", min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$")
     max_results: int = Field(default=10, ge=1, le=50)
 
     @field_validator("origin", "destination", "currency")

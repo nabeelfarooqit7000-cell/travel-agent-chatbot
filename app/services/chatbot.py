@@ -69,7 +69,7 @@ class TravelChatbotService:
         departure_date = date.fromisoformat(dates[0])
         return_date = date.fromisoformat(dates[1]) if len(dates) > 1 else None
         adults = int(adults_match.group(1)) if adults_match else 1
-        currency = currency_match.group(1) if currency_match else "USD"
+        currency = currency_match.group(1) if currency_match else "PKR"
 
         return FareSearchRequest(
             origin=airports[0],

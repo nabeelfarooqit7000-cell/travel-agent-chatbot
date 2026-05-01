@@ -88,7 +88,7 @@ curl -X POST http://127.0.0.1:8000/api/chat \
       "destination": "LHR",
       "departure_date": "2026-06-14",
       "adults": 1,
-      "currency": "USD"
+      "currency": "PKR"
     }
   }'
 ```
@@ -114,10 +114,15 @@ curl -X POST http://127.0.0.1:8000/api/fares/search \
     "departure_date": "2026-06-14",
     "return_date": "2026-06-21",
     "adults": 1,
-    "currency": "USD",
+    "children": 0,
+    "infants": 0,
+    "currency": "PKR",
     "max_results": 10
   }'
 ```
+
+`origin` and `destination` should be 3-letter IATA airport codes (for example `KHI`, `DXB`).  
+If `currency` is omitted, the API defaults it to `PKR`.
 
 ## Suggested Website Flow
 
