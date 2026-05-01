@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Header, HTTPException
+import secrets
+
+from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from app.config import get_settings
@@ -11,12 +13,14 @@ from app.schemas.admin import (
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.schemas.fares import FareSearchRequest, FareSearchResponse
 from app.services.chatbot import TravelChatbotService
+from app.services.admin_security import AdminRateLimiter
 from app.services.knowledge_store import KnowledgeStore
 from app.services.sabre import SabreAPIError, SabreTravelService
 from app.ui.admin_page import ADMIN_PAGE_HTML
 from app.ui.demo_page import DEMO_PAGE_HTML
 
 router = APIRouter()
+admin_rate_limiter = AdminRateLimiter()
 
 
 @router.get("/health")
@@ -47,9 +51,11 @@ async def admin_setup_status() -> AdminSetupStatusResponse:
 
 @router.post("/api/admin/setup/initialize", response_model=KnowledgePayloadResponse)
 async def admin_initialize(
-    payload: AdminInitializeRequest, x_admin_key: str = Header(default="", alias="X-Admin-Key")
+    payload: AdminInitializeRequest,
+    request: Request,
+    x_admin_key: str = Header(default="", alias="X-Admin-Key"),
 ) -> KnowledgePayloadResponse:
-    _verify_admin_key(x_admin_key)
+    _verify_admin_access(request, x_admin_key)
     store = KnowledgeStore()
     data = store.initialize(company_name=payload.company_name, admin_email=payload.admin_email)
     return KnowledgePayloadResponse(**data)
@@ -57,9 +63,11 @@ async def admin_initialize(
 
 @router.post("/api/admin/knowledge/update", response_model=KnowledgePayloadResponse)
 async def admin_update_knowledge(
-    payload: KnowledgeUpdateRequest, x_admin_key: str = Header(default="", alias="X-Admin-Key")
+    payload: KnowledgeUpdateRequest,
+    request: Request,
+    x_admin_key: str = Header(default="", alias="X-Admin-Key"),
 ) -> KnowledgePayloadResponse:
-    _verify_admin_key(x_admin_key)
+    _verify_admin_access(request, x_admin_key)
     store = KnowledgeStore()
     data = store.update_content(
         faqs=payload.faqs,
@@ -91,9 +99,12 @@ async def chat(payload: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-def _verify_admin_key(x_admin_key: str) -> None:
+def _verify_admin_access(request: Request, x_admin_key: str) -> None:
     settings = get_settings()
+    client_key = request.client.host if request.client else "unknown"
+    if not admin_rate_limiter.check(client_key=client_key, limit_per_minute=settings.admin_rate_limit_per_minute):
+        raise HTTPException(status_code=429, detail="Too many admin requests. Try again later.")
     if not settings.admin_setup_key:
         raise HTTPException(status_code=500, detail="ADMIN_SETUP_KEY is not configured.")
-    if x_admin_key != settings.admin_setup_key:
+    if not secrets.compare_digest(x_admin_key, settings.admin_setup_key):
         raise HTTPException(status_code=401, detail="Invalid admin key.")

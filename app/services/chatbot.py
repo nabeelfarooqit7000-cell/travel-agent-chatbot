@@ -24,11 +24,11 @@ class TravelChatbotService:
         if trip:
             fare_response = await self.sabre_service.search_best_fares(trip)
             answer = self._build_answer(trip, fare_response.options)
-            return ChatResponse(answer=answer, detected_trip=trip, fares=fare_response.options)
+            return ChatResponse(answer=answer, detected_trip=trip, fares=fare_response.options, route_type="sabre")
 
         knowledge_answer = self.knowledge_service.answer(request.message)
         if knowledge_answer:
-            return ChatResponse(answer=knowledge_answer, detected_trip=None, fares=[])
+            return ChatResponse(answer=knowledge_answer, detected_trip=None, fares=[], route_type="knowledge")
 
         if not trip:
             return ChatResponse(
@@ -39,6 +39,7 @@ class TravelChatbotService:
                 ),
                 detected_trip=None,
                 fares=[],
+                route_type="fallback",
             )
 
     def _build_answer(self, trip: FareSearchRequest, fares: list[FareOption]) -> str:
