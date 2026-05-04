@@ -12,6 +12,13 @@ from app.schemas.admin import (
 )
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.schemas.fares import FareSearchRequest, FareSearchResponse
+from app.schemas.leads import BookingLeadConfigResponse, LeadCreateRequest, LeadCreateResponse
+from app.services.booking_lead import (
+    BookingLeadForwardingError,
+    BookingLeadNotConfiguredError,
+    forward_booking_lead,
+    resolve_booking_lead_url,
+)
 from app.services.chatbot import TravelChatbotService
 from app.services.admin_security import AdminRateLimiter
 from app.services.knowledge_store import KnowledgeStore
@@ -75,8 +82,36 @@ async def admin_update_knowledge(
         refund_policy=payload.refund_policy,
         exchange_charges=payload.exchange_charges,
         refund_charges=payload.refund_charges,
+        booking_lead_url=payload.booking_lead_url,
     )
     return KnowledgePayloadResponse(**data)
+
+
+@router.get("/api/admin/knowledge", response_model=KnowledgePayloadResponse)
+async def admin_get_knowledge(
+    request: Request,
+    x_admin_key: str = Header(default="", alias="X-Admin-Key"),
+) -> KnowledgePayloadResponse:
+    _verify_admin_access(request, x_admin_key)
+    data = KnowledgeStore().load()
+    return KnowledgePayloadResponse(**data)
+
+
+@router.get("/api/public/booking-lead-config", response_model=BookingLeadConfigResponse)
+async def booking_lead_config() -> BookingLeadConfigResponse:
+    return BookingLeadConfigResponse(lead_delivery_enabled=bool(resolve_booking_lead_url()))
+
+
+@router.post("/api/leads", response_model=LeadCreateResponse)
+async def create_booking_lead(payload: LeadCreateRequest) -> LeadCreateResponse:
+    try:
+        code = await forward_booking_lead(payload)
+    except BookingLeadNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except BookingLeadForwardingError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return LeadCreateResponse(downstream_status_code=code)
 
 
 @router.post("/api/fares/search", response_model=FareSearchResponse)

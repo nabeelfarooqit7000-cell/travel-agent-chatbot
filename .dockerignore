@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+.venv-packages
+__pycache__
+.pytest_cache
+.mypy_cache
+*.pyc
+.env
+*.md
+.vscode
+tests
+widget
+render-diagnose.http

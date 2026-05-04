@@ -47,6 +47,13 @@ ADMIN_PAGE_HTML = """<!DOCTYPE html>
     <label for=\"faqsJson\">FAQs JSON (array)</label>
     <textarea id=\"faqsJson\" placeholder='[{"topic":"baggage","keywords":["baggage"],"answer":"..."}]'></textarea>
 
+    <label for=\"bookingLeadUrl\">Booking lead webhook URL (optional)</label>
+    <input id=\"bookingLeadUrl\" type=\"url\" placeholder=\"https://your-site.com/api/booking-requests\" />
+    <p style=\"margin:6px 0 0;font-size:0.92rem;color:#64748b\">
+      When travelers select a fare in chat, the API POSTs JSON to this URL. Leave blank to clear. You can also set <code>BOOKING_LEAD_URL</code> on the server (overrides this value when set).
+    </p>
+
+    <button id=\"loadKnowledgeButton\" type=\"button\">Load knowledge from server</button>
     <button id=\"saveButton\" type=\"button\">Save Knowledge</button>
     <div class=\"status\" id=\"status\"></div>
   </div>
@@ -57,6 +64,7 @@ ADMIN_PAGE_HTML = """<!DOCTYPE html>
     const exchangeChargesEl = document.getElementById("exchangeCharges");
     const refundChargesEl = document.getElementById("refundCharges");
     const faqsJsonEl = document.getElementById("faqsJson");
+    const bookingLeadUrlEl = document.getElementById("bookingLeadUrl");
 
     function baseUrl() {
       const v = document.getElementById("apiBaseUrl").value.trim();
@@ -126,6 +134,7 @@ ADMIN_PAGE_HTML = """<!DOCTYPE html>
         exchangeChargesEl.value = data.policies.exchange_charges || "";
         refundChargesEl.value = data.policies.refund_charges || "";
         faqsJsonEl.value = JSON.stringify(data.faqs || [], null, 2);
+        bookingLeadUrlEl.value = (data.integrations && data.integrations.booking_lead_url) || "";
       } catch (error) {
         statusEl.textContent = `Setup failed: ${error.message}`;
       }
@@ -157,6 +166,7 @@ ADMIN_PAGE_HTML = """<!DOCTYPE html>
           refund_policy: refundPolicyEl.value,
           exchange_charges: exchangeChargesEl.value,
           refund_charges: refundChargesEl.value,
+          booking_lead_url: bookingLeadUrlEl.value.trim(),
         };
         const response = await fetch(`${baseUrl()}/api/admin/knowledge/update`, {
           method: "POST",
@@ -168,6 +178,30 @@ ADMIN_PAGE_HTML = """<!DOCTYPE html>
         statusEl.textContent = `Knowledge updated at ${data.updated_at}.`;
       } catch (error) {
         statusEl.textContent = `Save failed: ${error.message}`;
+      }
+    });
+
+    document.getElementById("loadKnowledgeButton").addEventListener("click", async () => {
+      if (!key()) {
+        statusEl.textContent = "Load failed: Admin key is required.";
+        return;
+      }
+      statusEl.textContent = "Loading knowledge...";
+      try {
+        const response = await fetch(`${baseUrl()}/api/admin/knowledge`, {
+          headers: { "X-Admin-Key": key() },
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(parseApiError(data, "Load failed"));
+        termsEl.value = data.policies.terms_and_conditions || "";
+        refundPolicyEl.value = data.policies.refund_policy || "";
+        exchangeChargesEl.value = data.policies.exchange_charges || "";
+        refundChargesEl.value = data.policies.refund_charges || "";
+        faqsJsonEl.value = JSON.stringify(data.faqs || [], null, 2);
+        bookingLeadUrlEl.value = (data.integrations && data.integrations.booking_lead_url) || "";
+        statusEl.textContent = `Loaded knowledge (updated ${data.updated_at}).`;
+      } catch (error) {
+        statusEl.textContent = `Load failed: ${error.message}`;
       }
     });
 

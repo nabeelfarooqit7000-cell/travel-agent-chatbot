@@ -1,0 +1,43 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Render diagnose: GET /health",
+      "type": "shell",
+      "command": "curl -sS -w '\\nHTTP %{http_code}\\n' '${input:renderBase}/health'",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Render diagnose: GET /health (verbose)",
+      "type": "shell",
+      "command": "curl -sS -iv '${input:renderBase}/health'",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Render diagnose: POST /api/chat (smoke)",
+      "type": "shell",
+      "command": "curl -sS -w '\\nHTTP %{http_code}\\n' -X POST '${input:renderBase}/api/chat' -H 'Content-Type: application/json' -d '{\"message\":\"ping\"}'",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "renderBase",
+      "type": "promptString",
+      "description": "Render base URL (no trailing slash), e.g. https://travel-agent-chatbot-api.onrender.com",
+      "default": "https://REPLACE-WITH-YOUR-SERVICE.onrender.com"
+    }
+  ]
+}

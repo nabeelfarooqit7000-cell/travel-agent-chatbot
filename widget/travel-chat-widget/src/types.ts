@@ -13,20 +13,23 @@ export type ChatFare = {
   raw_offer_id?: string | null;
 };
 
+export type DetectedTrip = {
+  origin: string;
+  destination: string;
+  departure_date: string;
+  return_date?: string | null;
+  adults: number;
+  children: number;
+  infants: number;
+  currency: string;
+  max_results: number;
+};
+
 export type ChatResponse = {
   answer: string;
   fares: ChatFare[];
-  detected_trip?: {
-    origin: string;
-    destination: string;
-    departure_date: string;
-    return_date?: string | null;
-    adults: number;
-    children: number;
-    infants: number;
-    currency: string;
-    max_results: number;
-  } | null;
+  detected_trip?: DetectedTrip | null;
+  route_type?: string;
 };
 
 export type TravelChatWidgetLabels = {
@@ -38,6 +41,9 @@ export type TravelChatWidgetLabels = {
   loading?: string;
   emptyState?: string;
   intro?: string;
+  leadSending?: string;
+  leadRecorded?: string;
+  leadFailed?: string;
 };
 
 export type TravelChatWidgetProps = {
@@ -48,5 +54,11 @@ export type TravelChatWidgetProps = {
   labels?: TravelChatWidgetLabels;
   defaultOpen?: boolean;
   maxVisibleFares?: number;
-  onFareSelect?: (fare: ChatFare) => void;
+  /** When true (default), POSTs selected fare + trip to `{apiBaseUrl}/api/leads`. */
+  submitBookingLead?: boolean;
+  /**
+   * Called after a successful `/api/leads` response when `submitBookingLead` is true,
+   * or immediately on fare click when `submitBookingLead` is false.
+   */
+  onFareSelect?: (fare: ChatFare, meta?: { trip: DetectedTrip }) => void;
 };

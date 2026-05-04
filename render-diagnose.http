@@ -1,0 +1,36 @@
+### Travel Agent Chatbot — quick checks from Cursor
+### REST Client extension: choose env "local" or "render" (footer); edit render baseUrl in .vscode/settings.json if needed.
+
+### Health (matches Render healthCheckPath)
+GET {{baseUrl}}/health
+
+### Chat smoke (expects JSON body from API)
+POST {{baseUrl}}/api/chat
+Content-Type: application/json
+
+{
+  "message": "What is your refund policy?"
+}
+
+### Booking lead config (true when BOOKING_LEAD_URL or knowledge integrations URL is set)
+GET {{baseUrl}}/api/public/booking-lead-config
+
+### Create lead (fails with 503 if no webhook URL configured)
+POST {{baseUrl}}/api/leads
+Content-Type: application/json
+
+{
+  "source": "smoke",
+  "trip": {
+    "origin": "JFK",
+    "destination": "JED",
+    "departure_date": "2026-06-14",
+    "adults": 1,
+    "currency": "USD"
+  },
+  "fare": {
+    "rank": 1,
+    "total_price": 100.0,
+    "currency": "USD"
+  }
+}

@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     knowledge_backup_dir: str = "app/data/backups"
     admin_rate_limit_per_minute: int = 30
 
+    # Optional: POST booking leads to your website (overrides integrations.booking_lead_url in knowledge JSON when set).
+    booking_lead_url: str = ""
+    booking_lead_secret: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
 
 

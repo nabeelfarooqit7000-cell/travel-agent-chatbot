@@ -63,6 +63,7 @@ class KnowledgeStore:
         refund_policy: str,
         exchange_charges: str,
         refund_charges: str,
+        booking_lead_url: str | None = None,
     ) -> dict[str, Any]:
         current = self.load()
         current["initialized"] = True
@@ -73,6 +74,10 @@ class KnowledgeStore:
             "exchange_charges": exchange_charges.strip(),
             "refund_charges": refund_charges.strip(),
         }
+        if booking_lead_url is not None:
+            integrations = dict(current.get("integrations") or {})
+            integrations["booking_lead_url"] = booking_lead_url.strip()
+            current["integrations"] = integrations
         return self.save(current)
 
     def _normalize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -88,6 +93,10 @@ class KnowledgeStore:
             "refund_policy": str(policies.get("refund_policy", DEFAULT_REFUND_POLICY)).strip(),
             "exchange_charges": str(policies.get("exchange_charges", DEFAULT_EXCHANGE_CHARGES)).strip(),
             "refund_charges": str(policies.get("refund_charges", DEFAULT_REFUND_CHARGES)).strip(),
+        }
+        integrations = payload.get("integrations") or {}
+        base["integrations"] = {
+            "booking_lead_url": str(integrations.get("booking_lead_url", "")).strip(),
         }
         base["updated_at"] = str(payload.get("updated_at") or self._timestamp())
         return base
@@ -120,6 +129,7 @@ class KnowledgeStore:
                 "exchange_charges": DEFAULT_EXCHANGE_CHARGES,
                 "refund_charges": DEFAULT_REFUND_CHARGES,
             },
+            "integrations": {"booking_lead_url": ""},
             "updated_at": self._timestamp(),
         }
 

@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import type { ChatFare, ChatResponse, TravelChatWidgetProps } from "./types";
+import type { ChatFare, ChatResponse, DetectedTrip, TravelChatWidgetProps } from "./types";
 
 type UiMessage = {
   id: string;
   role: "assistant" | "user";
   text: string;
   fares?: ChatFare[];
+  detected_trip?: DetectedTrip | null;
 };
 
 const defaultLabels = {
@@ -20,6 +21,9 @@ const defaultLabels = {
   loading: "Checking live fares...",
   emptyState: "No fares returned yet.",
   intro: "Ask about flights and I will return ranked fare options from your Sabre-powered API.",
+  leadSending: "Sending booking request…",
+  leadRecorded: "Booking request sent to your team.",
+  leadFailed: "Could not record the booking request.",
 };
 
 const widgetStyles = `
@@ -257,10 +261,12 @@ export function TravelChatWidget({
   labels,
   defaultOpen = false,
   maxVisibleFares = 3,
+  submitBookingLead = true,
   onFareSelect,
 }: TravelChatWidgetProps) {
   const mergedLabels = { ...defaultLabels, ...labels };
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [leadBusyKey, setLeadBusyKey] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<UiMessage[]>([
@@ -314,6 +320,7 @@ export function TravelChatWidget({
         role: "assistant",
         text: data.answer,
         fares: data.fares.slice(0, maxVisibleFares),
+        detected_trip: data.detected_trip ?? undefined,
       };
 
       setMessages((current) => [...current, assistantMessage]);
@@ -329,6 +336,66 @@ export function TravelChatWidget({
       ]);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleFareActivate(message: UiMessage, fare: ChatFare) {
+    const trip = message.detected_trip;
+    const busyKey = `${message.id}-${fare.rank}-${fare.raw_offer_id ?? ""}`;
+    if (!trip) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: createId(),
+          role: "assistant",
+          text: mergedLabels.leadFailed ?? defaultLabels.leadFailed,
+        },
+      ]);
+      return;
+    }
+
+    if (!submitBookingLead) {
+      onFareSelect?.(fare, { trip });
+      return;
+    }
+
+    setLeadBusyKey(busyKey);
+    try {
+      const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/api/leads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trip,
+          fare,
+          source: "travel_chat_widget",
+        }),
+      });
+      const body = (await response.json().catch(() => ({}))) as { detail?: string };
+      if (!response.ok) {
+        const detail = typeof body.detail === "string" ? body.detail : response.statusText;
+        throw new Error(detail || `Request failed with status ${response.status}`);
+      }
+      setMessages((current) => [
+        ...current,
+        {
+          id: createId(),
+          role: "assistant",
+          text: mergedLabels.leadRecorded ?? defaultLabels.leadRecorded,
+        },
+      ]);
+      onFareSelect?.(fare, { trip });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Unknown error.";
+      setMessages((current) => [
+        ...current,
+        {
+          id: createId(),
+          role: "assistant",
+          text: `${mergedLabels.leadFailed ?? defaultLabels.leadFailed} ${detail}`,
+        },
+      ]);
+    } finally {
+      setLeadBusyKey(null);
     }
   }
 
@@ -380,7 +447,10 @@ export function TravelChatWidget({
                         key={fare.raw_offer_id ?? `${message.id}-${fare.rank}`}
                         type="button"
                         className="travel-chat-widget-fare-card"
-                        onClick={() => onFareSelect?.(fare)}
+                        disabled={
+                          leadBusyKey === `${message.id}-${fare.rank}-${fare.raw_offer_id ?? ""}`
+                        }
+                        onClick={() => handleFareActivate(message, fare)}
                       >
                         <span className="travel-chat-widget-fare-topline">
                           Option {fare.rank} · {fare.validating_carrier ?? "Airline pending"}

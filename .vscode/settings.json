@@ -1,0 +1,15 @@
+{
+  // Workspace helpers for diagnosing the deployed Render web service from Cursor.
+  // REST Client (extension): pick environment "local" or "render" in the status bar, then Send Request.
+  "files.associations": {
+    "*.http": "http"
+  },
+  "rest-client.environmentVariables": {
+    "local": {
+      "baseUrl": "http://127.0.0.1:8000"
+    },
+    "render": {
+      "baseUrl": "https://REPLACE-WITH-YOUR-SERVICE.onrender.com"
+    }
+  }
+}

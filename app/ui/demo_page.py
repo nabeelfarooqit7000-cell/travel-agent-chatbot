@@ -132,10 +132,19 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
     }
 
     .fare-card {
+      display: block;
+      width: 100%;
+      text-align: left;
+      font: inherit;
       border: 1px solid rgba(185, 98, 22, 0.14);
       border-radius: 16px;
       padding: 12px 14px;
       background: rgba(255, 255, 255, 0.84);
+      cursor: pointer;
+    }
+
+    .fare-card:hover {
+      border-color: rgba(185, 98, 22, 0.35);
     }
 
     .fare-card strong {
@@ -191,6 +200,21 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
       cursor: not-allowed;
     }
 
+    button.fare-card {
+      border-radius: 16px;
+      border: 1px solid rgba(185, 98, 22, 0.14);
+      background: rgba(255, 255, 255, 0.84);
+      color: var(--text);
+      padding: 12px 14px;
+      width: 100%;
+      text-align: left;
+      font-weight: 400;
+    }
+
+    button.fare-card:hover:not(:disabled) {
+      border-color: rgba(185, 98, 22, 0.35);
+    }
+
     .status {
       font-size: 0.9rem;
       margin-top: 10px;
@@ -236,6 +260,7 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
         <li>Ask about fares, routes, and travel dates.</li>
         <li>Ask website questions such as refund policy or baggage rules.</li>
         <li>See structured fare options when Sabre returns offers.</li>
+        <li>Click a fare card to send a <strong>booking lead</strong> to your website webhook (<code>/api/leads</code>).</li>
       </ul>
       <div class=\"examples\">
         <button class=\"example\" type=\"button\" data-example=\"What is your refund policy?\">What is your refund policy?</button>
@@ -281,7 +306,7 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
       return value ? value.replace(/\\/$/, "") : window.location.origin;
     }
 
-    function appendMessage(role, text, fares) {
+    function appendMessage(role, text, fares, detectedTrip) {
       const wrapper = document.createElement("div");
       wrapper.className = `message ${role}`;
       wrapper.textContent = text;
@@ -291,14 +316,44 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
         fareList.className = "fare-list";
 
         fares.forEach((fare) => {
-          const card = document.createElement("div");
+          const card = document.createElement("button");
+          card.type = "button";
           card.className = "fare-card";
           card.innerHTML = `
-            <small>Option ${fare.rank}${fare.validating_carrier ? ` · ${fare.validating_carrier}` : ""}</small>
+            <small>Option ${fare.rank}${fare.validating_carrier ? ` · ${fare.validating_carrier}` : ""} · Select to request booking</small>
             <strong>${Number(fare.total_price).toFixed(2)} ${fare.currency}</strong>
             <small>${fare.departure_airport ?? "Origin"} to ${fare.arrival_airport ?? "Destination"}</small><br />
             <small>${fare.number_of_stops === 0 ? "Non-stop" : `${fare.number_of_stops ?? "Unknown"} stop(s)`}</small>
           `;
+          card.addEventListener("click", async () => {
+            if (!detectedTrip) {
+              status.textContent = "Trip details missing; cannot submit booking lead.";
+              return;
+            }
+            status.textContent = "Sending booking lead…";
+            card.disabled = true;
+            try {
+              const res = await fetch(`${getApiBaseUrl()}/api/leads`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  trip: detectedTrip,
+                  fare,
+                  source: "travel_chat_demo",
+                }),
+              });
+              const body = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                const detail = typeof body.detail === "string" ? body.detail : res.statusText;
+                throw new Error(detail || `Request failed with status ${res.status}`);
+              }
+              status.textContent = "Booking lead sent.";
+            } catch (err) {
+              status.textContent = "Lead failed: " + (err && err.message ? err.message : "Unknown error");
+            } finally {
+              card.disabled = false;
+            }
+          });
           fareList.appendChild(card);
         });
 
@@ -326,7 +381,7 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
           throw new Error(data.detail || `Request failed with status ${response.status}`);
         }
 
-        appendMessage("assistant", data.answer, data.fares || []);
+        appendMessage("assistant", data.answer, data.fares || [], data.detected_trip);
         status.textContent = "";
       } catch (error) {
         appendMessage("assistant", `Request failed. ${error.message || "Unknown error."}`);

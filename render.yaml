@@ -1,0 +1,58 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Create or sync from the Render Dashboard → Blueprints.
+#
+# Debugging (dashboard → Environment):
+# - UVICORN_LOG_LEVEL=debug — verbose uvicorn access/error logs (switch back to info after).
+# - Build failures: temporarily set buildCommand to:
+#     pip install -r requirements.txt -v
+
+services:
+  - type: web
+    name: travel-agent-chatbot-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --log-level ${UVICORN_LOG_LEVEL:-info}
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: UVICORN_LOG_LEVEL
+        value: info
+      - key: APP_ENV
+        value: production
+      - key: SABRE_BASE_URL
+        value: https://api.cert.platform.sabre.com
+      - key: SABRE_AUTH_URL
+        value: https://api.cert.platform.sabre.com/v2/auth/token
+      - key: SABRE_FLIGHT_SHOP_PATH
+        value: /v5/offers/shop
+      - key: SABRE_REQUESTOR_COMPANY_CODE
+        value: TN
+      - key: SABRE_ISO_COUNTRY
+        value: PK
+      - key: SABRE_TIMEOUT_SECONDS
+        value: "30"
+      - key: KNOWLEDGE_JSON_PATH
+        value: app/data/knowledge_base.json
+      - key: KNOWLEDGE_BACKUP_DIR
+        value: app/data/backups
+      - key: ADMIN_RATE_LIMIT_PER_MINUTE
+        value: "30"
+      # Optional: fare-selection leads POST to your website (same as BOOKING_LEAD_URL / BOOKING_LEAD_SECRET in .env).
+      - key: BOOKING_LEAD_URL
+        sync: false
+      - key: BOOKING_LEAD_SECRET
+        sync: false
+      # Set these in the dashboard (Secrets) when you provision the service:
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+      - key: ADMIN_SETUP_KEY
+        sync: false
+      - key: SABRE_CLIENT_ID
+        sync: false
+      - key: SABRE_CLIENT_SECRET
+        sync: false
+      - key: SABRE_CPA_ID
+        sync: false
+      - key: SABRE_PCC
+        sync: false

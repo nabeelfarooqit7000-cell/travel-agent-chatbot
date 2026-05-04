@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -18,6 +20,10 @@ class KnowledgeUpdateRequest(BaseModel):
     refund_policy: str = Field(min_length=4)
     exchange_charges: str = Field(min_length=4)
     refund_charges: str = Field(min_length=4)
+    booking_lead_url: str | None = Field(
+        default=None,
+        description="Webhook URL for fare-selection leads. Omit to leave unchanged; set to '' to clear.",
+    )
 
 
 class KnowledgePayloadResponse(BaseModel):
@@ -25,4 +31,5 @@ class KnowledgePayloadResponse(BaseModel):
     company: dict
     faqs: list[dict]
     policies: dict
+    integrations: dict[str, Any] = Field(default_factory=dict)
     updated_at: str
